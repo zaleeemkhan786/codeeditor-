@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Editor</title>
+    <style>
+        /* ==================== RESET & BASE STYLES ==================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* ==================== MENU BAR ==================== */
+        .menu-bar {
+            background: #2d2d30;
+            border-bottom: 1px solid #1e1e1e;
+            display: flex;
+            padding: 0 10px;
+            height: 35px;
+            align-items: center;
+            user-select: none;
+        }
+
+        .menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            position: relative;
+        }
+
+        .menu-item:hover {
+            background: #3e3e42;
+        }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #2d2d30;
+            border: 1px solid #454545;
+            min-width: 200px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-item.active .dropdown {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 8px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .dropdown-item:hover {
+            background: #3e3e42;
+        }
+
+        .shortcut {
+            color: #858585;
+            font-size: 12px;
+            margin-left: 30px;
+        }
+
+        /* ==================== TAB BAR ==================== */
+        .tab-bar {
+            background: #2d2d30;
+            display: flex;
+            overflow-x: auto;
+            border-bottom: 1px solid #1e1e1e;
+            height: 35px;
+        }
+
+        .tab-bar::-webkit-scrollbar {
+            height: 0;
+        }
+
+        .tab {
+            padding: 8px 35px 8px 15px;
+            cursor: pointer;
+            border-right: 1px solid #1e1e1e;
+            background: #252526;
+            color: #969696;
+            font-size: 13px;
+            white-space: nowrap;
+            position: relative;
+            min-width: 120px;
+        }
+
+        .tab.active {
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        .tab:hover {
+            background: #2a2a2a;
+        }
+
+        .tab.modified::before {
+            content: '●';
+            position: absolute;
+            right: 22px;
+            color: #4ec9b0;
+        }
+
+        .tab-close {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            opacity: 0.6;
+        }
+
+        .tab-close:hover {
+            background: #464647;
+            opacity: 1;
+        }
+
+        /* ==================== EDITOR CONTAINER ==================== */
+        .editor-container {
+            display: flex;
+            height: calc(100vh - 96px);
+            position: relative;
+            transition: width 0.3s ease;
+        }
+
+        .editor-container.preview-active {
+            width: 50%;
+        }
+
+        .line-numbers {
+            background: #1e1e1e;
+            color: #858585;
+            padding: 10px 10px 10px 20px;
+            font-size: 14px;
+            line-height: 21px;
+            text-align: right;
+            user-select: none;
+            min-width: 50px;
+            border-right: 1px solid #2d2d30;
+            overflow: hidden;
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+        }
+
+        .editor {
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            outline: none;
+            resize: none;
+            padding: 10px 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 21px;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+            tab-size: 4;
+        }
+
+        .syntax-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 10px 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 21px;
+            white-space: pre;
+            pointer-events: none;
+            color: transparent;
+            overflow: hidden;
+        }
+
+        /* ==================== SYNTAX HIGHLIGHTING COLORS ==================== */
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .comment { color: #6a9955; font-style: italic; }
+        .number { color: #b5cea8; }
+        .function { color: #dcdcaa; }
+        .tag { color: #4ec9b0; }
+        .attribute { color: #9cdcfe; }
+        .operator { color: #d4d4d4; }
+
+        /* ==================== STATUS BAR ==================== */
+        .status-bar {
+            background: #007acc;
+            color: #ffffff;
+            padding: 4px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            height: 26px;
+        }
+
+        .status-left, .status-right {
+            display: flex;
+            gap: 20px;
+        }
+
+        /* ==================== MOBILE RESPONSIVE ==================== */
+        @media (max-width: 768px) {
+            .menu-bar {
+                overflow-x: auto;
+            }
+
+            .editor {
+                font-size: 13px;
+            }
+
+            .line-numbers {
+                padding-left: 10px;
+            }
+
+            .shortcut {
+                display: none;
+            }
+        }
+
+        /* ==================== HIDDEN FILE INPUT ==================== */
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Menu Bar -->
+    <div class="menu-bar">
+        <div class="menu-item" onclick="toggleMenu(this)">
+            File
+            <div class="dropdown">
+                <div class="dropdown-item" onclick="event.stopPropagation(); newFile(); closeMenus()">
+                    New File <span class="shortcut">Ctrl+N</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); openFile(); closeMenus()">
+                    Open File <span class="shortcut">Ctrl+O</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); saveFile(); closeMenus()">
+                    Save <span class="shortcut">Ctrl+S</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); saveFileAs(); closeMenus()">
+                    Save As... <span class="shortcut">Ctrl+Shift+S</span>
+                </div>
+            </div>
+        </div>
+        <div class="menu-item" onclick="toggleMenu(this)">
+            Edit
+            <div class="dropdown">
+                <div class="dropdown-item" onclick="event.stopPropagation(); undo(); closeMenus()">
+                    Undo <span class="shortcut">Ctrl+Z</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); redo(); closeMenus()">
+                    Redo <span class="shortcut">Ctrl+Y</span>
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); selectAll(); closeMenus()">
+                    Select All <span class="shortcut">Ctrl+A</span>
+                </div>
+            </div>
+        </div>
+        <div class="menu-item" onclick="toggleMenu(this)">
+            View
+            <div class="dropdown">
+                <div class="dropdown-item" onclick="event.stopPropagation(); toggleLineNumbers(); closeMenus()">
+                    Toggle Line Numbers
+                </div>
+                <div class="dropdown-item" onclick="event.stopPropagation(); togglePreview(); closeMenus()">
+                    Toggle Preview <span class="shortcut">Ctrl+P</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar" id="tabBar"></div>
+
+    <!-- Editor Container -->
+    <div class="editor-container">
+        <div class="line-numbers" id="lineNumbers"></div>
+        <div class="editor-wrapper">
+            <div class="syntax-highlight" id="syntaxHighlight"></div>
+            <textarea class="editor" id="editor" spellcheck="false"></textarea>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span id="fileType">Plain Text</span>
+            <span id="encoding">UTF-8</span>
+        </div>
+        <div class="status-right">
+            <span id="cursorPosition">Ln 1, Col 1</span>
+            <span id="lineCount">1 line</span>
+        </div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept=".html,.css,.js,.ts,.tsx,.py,.php,.txt,.json,.md">
+    
+    <!-- Preview Panel -->
+    <div id="previewPanel" style="display: none; position: fixed; right: 0; top: 70px; width: 50%; height: calc(100vh - 96px); background: white; border-left: 2px solid #2d2d30; z-index: 100;">
+        <div style="background: #2d2d30; padding: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #d4d4d4; font-size: 13px;">Live Preview</span>
+            <button onclick="togglePreview()" style="background: #3e3e42; color: #d4d4d4; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Close</button>
+        </div>
+        <iframe id="previewFrame" style="width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
+    </div>
+
+    <script>
+        // ==================== STATE MANAGEMENT ====================
+        let files = [];
+        let activeFileId = null;
+        let fileIdCounter = 0;
+
+        // ==================== INITIALIZATION ====================
+        function init() {
+            loadFromLocalStorage();
+            if (files.length === 0) {
+                createNewFile();
+            } else {
+                activeFileId = files[0].id;
+            }
+            renderTabs();
+            loadActiveFile();
+            setupEventListeners();
+            updateLineNumbers();
+            updateStatusBar();
+            setupMenuClosing();
+        }
+
+        // ==================== MENU MANAGEMENT ====================
+        function toggleMenu(menuItem) {
+            const wasActive = menuItem.classList.contains('active');
+            closeMenus();
+            if (!wasActive) {
+                menuItem.classList.add('active');
+            }
+        }
+
+        function closeMenus() {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+        }
+
+        function setupMenuClosing() {
+            // Close menus when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.menu-item')) {
+                    closeMenus();
+                }
+            });
+
+            // Close menus on escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeMenus();
+                }
+            });
+        }
+
+        // ==================== FILE MANAGEMENT ====================
+        function createNewFile(name = 'untitled.txt', content = '') {
+            const file = {
+                id: fileIdCounter++,
+                name: name,
+                content: content,
+                modified: false,
+                type: detectFileType(name)
+            };
+            files.push(file);
+            return file;
+        }
+
+        function newFile() {
+            const file = createNewFile();
+            activeFileId = file.id;
+            renderTabs();
+            loadActiveFile();
+            saveToLocalStorage();
+        }
+
+        function openFile() {
+            document.getElementById('fileInput').click();
+        }
+
+        function saveFile() {
+            const activeFile = getActiveFile();
+            if (!activeFile) return;
+
+            activeFile.content = document.getElementById('editor').value;
+            activeFile.modified = false;
+            renderTabs();
+            saveToLocalStorage();
+
+            // Create download
+            const blob = new Blob([activeFile.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = activeFile.name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function saveFileAs() {
+            const activeFile = getActiveFile();
+            if (!activeFile) return;
+
+            const newName = prompt('Enter file name:', activeFile.name);
+            if (newName) {
+                activeFile.name = newName;
+                activeFile.type = detectFileType(newName);
+                activeFile.content = document.getElementById('editor').value;
+                activeFile.modified = false;
+                renderTabs();
+                saveFile();
+                updateStatusBar();
+            }
+        }
+
+        function closeFile(fileId) {
+            const index = files.findIndex(f => f.id === fileId);
+            if (index === -1) return;
+
+            if (files[index].modified) {
+                if (!confirm(`${files[index].name} has unsaved changes. Close anyway?`)) {
+                    return;
+                }
+            }
+
+            files.splice(index, 1);
+
+            if (activeFileId === fileId) {
+                if (files.length > 0) {
+                    activeFileId = files[Math.max(0, index - 1)].id;
+                } else {
+                    createNewFile();
+                    activeFileId = files[0].id;
+                }
+            }
+
+            renderTabs();
+            loadActiveFile();
+            saveToLocalStorage();
+        }
+
+        function switchFile(fileId) {
+            saveCurrentFile();
+            activeFileId = fileId;
+            renderTabs();
+            loadActiveFile();
+        }
+
+        function saveCurrentFile() {
+            const activeFile = getActiveFile();
+            if (activeFile) {
+                activeFile.content = document.getElementById('editor').value;
+            }
+        }
+
+        function getActiveFile() {
+            return files.find(f => f.id === activeFileId);
+        }
+
+        function loadActiveFile() {
+            const activeFile = getActiveFile();
+            const editor = document.getElementById('editor');
+            
+            if (activeFile) {
+                editor.value = activeFile.content;
+                updateSyntaxHighlight();
+                updateLineNumbers();
+                updateStatusBar();
+                editor.focus();
+            }
+        }
+
+        // ==================== FILE TYPE DETECTION ====================
+        function detectFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const types = {
+                'html': 'HTML',
+                'css': 'CSS',
+                'js': 'JavaScript',
+                'ts': 'TypeScript',
+                'tsx': 'TypeScript',
+                'py': 'Python',
+                'php': 'PHP',
+                'json': 'JSON',
+                'md': 'Markdown',
+                'txt': 'Plain Text'
+            };
+            return types[ext] || 'Plain Text';
+        }
+
+        // ==================== TAB RENDERING ====================
+        function renderTabs() {
+            const tabBar = document.getElementById('tabBar');
+            tabBar.innerHTML = '';
+
+            files.forEach(file => {
+                const tab = document.createElement('div');
+                tab.className = 'tab' + (file.id === activeFileId ? ' active' : '') + (file.modified ? ' modified' : '');
+                tab.onclick = (e) => {
+                    if (!e.target.classList.contains('tab-close')) {
+                        switchFile(file.id);
+                    }
+                };
+
+                tab.innerHTML = `
+                    ${file.name}
+                    <span class="tab-close" onclick="event.stopPropagation(); closeFile(${file.id})">✕</span>
+                `;
+
+                tabBar.appendChild(tab);
+            });
+        }
+
+        // ==================== SYNTAX HIGHLIGHTING ====================
+        function updateSyntaxHighlight() {
+            const editor = document.getElementById('editor');
+            const highlight = document.getElementById('syntaxHighlight');
+            const activeFile = getActiveFile();
+            
+            if (!activeFile) return;
+
+            let code = editor.value;
+            let highlighted = '';
+
+            if (activeFile.type === 'JavaScript' || activeFile.type === 'TypeScript') {
+                highlighted = highlightJavaScript(code);
+            } else if (activeFile.type === 'HTML') {
+                highlighted = highlightHTML(code);
+            } else if (activeFile.type === 'CSS') {
+                highlighted = highlightCSS(code);
+            } else if (activeFile.type === 'Python') {
+                highlighted = highlightPython(code);
+            } else if (activeFile.type === 'PHP') {
+                highlighted = highlightPHP(code);
+            } else {
+                highlighted = escapeHtml(code);
+            }
+
+            highlight.innerHTML = highlighted;
+        }
+
+        function highlightJavaScript(code) {
+            const keywords = /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|try|catch|finally|throw|new|typeof|instanceof|this|class|extends|import|export|default|async|await|yield|delete|in|of|interface|type|enum|public|private|protected|static|readonly|namespace|module|declare|abstract|implements|keyof|infer|as|from)\b/g;
+            const strings = /(["'`])(?:(?=(\\?))\2.)*?\1/g;
+            const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
+            const numbers = /\b(\d+\.?\d*)\b/g;
+            const functions = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g;
+
+            code = escapeHtml(code);
+            code = code.replace(comments, '<span class="comment">$1</span>');
+            code = code.replace(strings, '<span class="string">$1</span>');
+            code = code.replace(keywords, '<span class="keyword">$1</span>');
+            code = code.replace(numbers, '<span class="number">$1</span>');
+            code = code.replace(functions, '<span class="function">$1</span>');
+
+            return code;
+        }
+
+        function highlightPython(code) {
+            const keywords = /\b(False|None|True|and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield|self|print|len|range|str|int|float|list|dict|tuple|set)\b/g;
+            const strings = /(["'])(?:(?=(\\?))\2.)*?\1|'''[\s\S]*?'''|"""[\s\S]*?"""/g;
+            const comments = /(#.*$)/gm;
+            const numbers = /\b(\d+\.?\d*)\b/g;
+            const functions = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()/g;
+            const decorators = /(@[a-zA-Z_][a-zA-Z0-9_]*)/g;
+
+            code = escapeHtml(code);
+            code = code.replace(comments, '<span class="comment">$1</span>');
+            code = code.replace(strings, '<span class="string">$1</span>');
+            code = code.replace(decorators, '<span class="function">$1</span>');
+            code = code.replace(keywords, '<span class="keyword">$1</span>');
+            code = code.replace(numbers, '<span class="number">$1</span>');
+            code = code.replace(functions, '<span class="function">$1</span>');
+
+            return code;
+        }
+
+        function highlightPHP(code) {
+            const keywords = /\b(abstract|and|array|as|break|callable|case|catch|class|clone|const|continue|declare|default|die|do|echo|else|elseif|empty|enddeclare|endfor|endforeach|endif|endswitch|endwhile|eval|exit|extends|final|finally|fn|for|foreach|function|global|goto|if|implements|include|include_once|instanceof|insteadof|interface|isset|list|namespace|new|or|print|private|protected|public|require|require_once|return|static|switch|throw|trait|try|unset|use|var|while|xor|yield|parent|self|true|false|null)\b/g;
+            const variables = /(\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
+            const strings = /(["'])(?:(?=(\\?))\2.)*?\1/g;
+            const comments = /(\/\/.*$|\/\*[\s\S]*?\*\/|#.*$)/gm;
+            const numbers = /\b(\d+\.?\d*)\b/g;
+            const functions = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?=\()/g;
+
+            code = escapeHtml(code);
+            code = code.replace(comments, '<span class="comment">$1</span>');
+            code = code.replace(strings, '<span class="string">$1</span>');
+            code = code.replace(keywords, '<span class="keyword">$1</span>');
+            code = code.replace(variables, '<span class="attribute">$1</span>');
+            code = code.replace(numbers, '<span class="number">$1</span>');
+            code = code.replace(functions, '<span class="function">$1</span>');
+
+            return code;
+        }
+
+        function highlightHTML(code) {
+            code = escapeHtml(code);
+            code = code.replace(/(&lt;\!--[\s\S]*?--&gt;)/g, '<span class="comment">$1</span>');
+            code = code.replace(/(&lt;\/?)([\w-]+)/g, '$1<span class="tag">$2</span>');
+            code = code.replace(/([\w-]+)(?==)/g, '<span class="attribute">$1</span>');
+            code = code.replace(/(=)(".*?"|'.*?')/g, '$1<span class="string">$2</span>');
+            return code;
+        }
+
+        function highlightCSS(code) {
+            code = escapeHtml(code);
+            code = code.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="comment">$1</span>');
+            code = code.replace(/([.#]?[\w-]+)(?=\s*\{)/g, '<span class="tag">$1</span>');
+            code = code.replace(/([\w-]+)(?=\s*:)/g, '<span class="attribute">$1</span>');
+            code = code.replace(/(:)([^;{}]+)/g, '$1<span class="string">$2</span>');
+            return code;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== LINE NUMBERS ====================
+        function updateLineNumbers() {
+            const editor = document.getElementById('editor');
+            const lineNumbers = document.getElementById('lineNumbers');
+            const lines = editor.value.split('\n').length;
+            
+            let html = '';
+            for (let i = 1; i <= lines; i++) {
+                html += i + '\n';
+            }
+            lineNumbers.textContent = html;
+        }
+
+        // ==================== STATUS BAR ====================
+        function updateStatusBar() {
+            const editor = document.getElementById('editor');
+            const activeFile = getActiveFile();
+            
+            // File type
+            document.getElementById('fileType').textContent = activeFile ? activeFile.type : 'Plain Text';
+            
+            // Cursor position
+            const pos = editor.selectionStart;
+            const textBeforeCursor = editor.value.substring(0, pos);
+            const line = textBeforeCursor.split('\n').length;
+            const col = textBeforeCursor.split('\n').pop().length + 1;
+            document.getElementById('cursorPosition').textContent = `Ln ${line}, Col ${col}`;
+            
+            // Line count
+            const lineCount = editor.value.split('\n').length;
+            document.getElementById('lineCount').textContent = `${lineCount} line${lineCount !== 1 ? 's' : ''}`;
+        }
+
+        // ==================== EDITOR FEATURES ====================
+        function handleTab(e) {
+            e.preventDefault();
+            const editor = e.target;
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const value = editor.value;
+
+            editor.value = value.substring(0, start) + '    ' + value.substring(end);
+            editor.selectionStart = editor.selectionEnd = start + 4;
+
+            markAsModified();
+            updateSyntaxHighlight();
+        }
+
+        function handleAutoIndent(e) {
+            if (e.key === 'Enter') {
+                const editor = e.target;
+                const start = editor.selectionStart;
+                const value = editor.value;
+                const lines = value.substring(0, start).split('\n');
+                const currentLine = lines[lines.length - 1];
+                const indent = currentLine.match(/^\s*/)[0];
+
+                setTimeout(() => {
+                    const newStart = editor.selectionStart;
+                    editor.value = value.substring(0, newStart) + indent + value.substring(newStart);
+                    editor.selectionStart = editor.selectionEnd = newStart + indent.length;
+                    updateSyntaxHighlight();
+                    updateLineNumbers();
+                }, 0);
+            }
+        }
+
+        function markAsModified() {
+            const activeFile = getActiveFile();
+            if (activeFile && !activeFile.modified) {
+                activeFile.modified = true;
+                renderTabs();
+            }
+        }
+
+        // ==================== KEYBOARD SHORTCUTS ====================
+        function handleKeyboard(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key.toLowerCase()) {
+                    case 's':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            saveFileAs();
+                        } else {
+                            saveFile();
+                        }
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        newFile();
+                        break;
+                    case 'o':
+                        e.preventDefault();
+                        openFile();
+                        break;
+                    case 'p':
+                        e.preventDefault();
+                        togglePreview();
+                        break;
+                }
+            }
+        }
+
+        // ==================== EDIT FUNCTIONS ====================
+        function undo() {
+            document.execCommand('undo');
+        }
+
+        function redo() {
+            document.execCommand('redo');
+        }
+
+        function selectAll() {
+            document.getElementById('editor').select();
+        }
+
+        // ==================== VIEW FUNCTIONS ====================
+        function toggleLineNumbers() {
+            const lineNumbers = document.getElementById('lineNumbers');
+            lineNumbers.style.display = lineNumbers.style.display === 'none' ? 'block' : 'none';
+        }
+
+        let previewVisible = false;
+
+        function togglePreview() {
+            previewVisible = !previewVisible;
+            const panel = document.getElementById('previewPanel');
+            const container = document.querySelector('.editor-container');
+            
+            if (previewVisible) {
+                panel.style.display = 'block';
+                container.classList.add('preview-active');
+                updatePreview();
+            } else {
+                panel.style.display = 'none';
+                container.classList.remove('preview-active');
+            }
+        }
+
+        function updatePreview() {
+            if (!previewVisible) return;
+            
+            const activeFile = getActiveFile();
+            if (!activeFile) return;
+
+            const iframe = document.getElementById('previewFrame');
+            const content = document.getElementById('editor').value;
+
+            if (activeFile.type === 'HTML') {
+                // For HTML files, render directly
+                iframe.srcdoc = content;
+            } else if (activeFile.type === 'JavaScript' || activeFile.type === 'TypeScript') {
+                // For JS/TS, create a simple HTML wrapper
+                const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: 'Consolas', monospace; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        pre { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 5px;
+            overflow: auto;
+        }
+        .output {
+            background: #2d2d30;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h3>Code:</h3>
+    <pre><code>${escapeHtml(content)}</code></pre>
+    <h3>Console Output:</h3>
+    <div class="output" id="output"></div>
+    <script>
+        const output = document.getElementById('output');
+        console.log = function(...args) {
+            output.innerHTML += args.join(' ') + '<br>';
+        };
+        console.error = function(...args) {
+            output.innerHTML += '<span style="color: #f48771;">Error: ' + args.join(' ') + '</span><br>';
+        };
+        try {
+            ${content}
+        } catch(e) {
+            console.error(e.message);
+        }
+    </script>
+</body>
+</html>`;
+                iframe.srcdoc = html;
+            } else if (activeFile.type === 'Python') {
+                // For Python, show syntax-highlighted code
+                iframe.srcdoc = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: 'Consolas', monospace; 
+            padding: 20px; 
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        pre { 
+            background: #2d2d30; 
+            padding: 20px; 
+            border-radius: 5px;
+            overflow: auto;
+            line-height: 1.6;
+        }
+        .info {
+            background: #264f78;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">⚠️ Python preview shows syntax only. To run Python code, use a Python interpreter.</div>
+    <h3>Python Code:</h3>
+    <pre>${highlightPython(content)}</pre>
+</body>
+</html>`;
+            } else if (activeFile.type === 'PHP') {
+                // For PHP, show syntax-highlighted code
+                iframe.srcdoc = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: 'Consolas', monospace; 
+            padding: 20px; 
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        pre { 
+            background: #2d2d30; 
+            padding: 20px; 
+            border-radius: 5px;
+            overflow: auto;
+            line-height: 1.6;
+        }
+        .info {
+            background: #264f78;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">⚠️ PHP preview shows syntax only. To run PHP code, use a PHP server.</div>
+    <h3>PHP Code:</h3>
+    <pre>${highlightPHP(content)}</pre>
+</body>
+</html>`;
+            } else if (activeFile.type === 'CSS') {
+                // For CSS, show with demo elements
+                iframe.srcdoc = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        ${content}
+    </style>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .demo-container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">CSS Preview - Add HTML elements with classes to see styling</div>
+    <div class="demo-container">
+        <h1>Heading 1</h1>
+        <h2>Heading 2</h2>
+        <p>This is a paragraph with <a href="#">a link</a>.</p>
+        <button>Button</button>
+        <div class="box">Box Element</div>
+        <ul>
+            <li>List item 1</li>
+            <li>List item 2</li>
+            <li>List item 3</li>
+        </ul>
+    </div>
+</body>
+</html>`;
+            } else {
+                // For other file types, show raw content
+                iframe.srcdoc = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: 'Consolas', monospace; 
+            padding: 20px; 
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        pre { 
+            background: #2d2d30; 
+            padding: 20px; 
+            border-radius: 5px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <pre>${escapeHtml(content)}</pre>
+</body>
+</html>`;
+            }
+        }
+
+        // ==================== LOCAL STORAGE ====================
+        function saveToLocalStorage() {
+            const data = {
+                files: files,
+                activeFileId: activeFileId,
+                fileIdCounter: fileIdCounter
+            };
+            localStorage.setItem('codeEditorData', JSON.stringify(data));
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('codeEditorData');
+            if (data) {
+                const parsed = JSON.parse(data);
+                files = parsed.files || [];
+                activeFileId = parsed.activeFileId;
+                fileIdCounter = parsed.fileIdCounter || files.length;
+            }
+        }
+
+        // ==================== FILE INPUT HANDLER ====================
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const newFile = createNewFile(file.name, event.target.result);
+                    activeFileId = newFile.id;
+                    renderTabs();
+                    loadActiveFile();
+                    saveToLocalStorage();
+                };
+                reader.readAsText(file);
+            }
+            e.target.value = '';
+        });
+
+        // ==================== EVENT LISTENERS ====================
+        function setupEventListeners() {
+            const editor = document.getElementById('editor');
+
+            editor.addEventListener('input', () => {
+                markAsModified();
+                updateSyntaxHighlight();
+                updateLineNumbers();
+                updateStatusBar();
+                saveToLocalStorage();
+                if (previewVisible) {
+                    updatePreview();
+                }
+            });
+
+            editor.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    handleTab(e);
+                }
+                handleAutoIndent(e);
+            });
+
+            editor.addEventListener('keyup', updateStatusBar);
+            editor.addEventListener('click', updateStatusBar);
+            editor.addEventListener('scroll', () => {
+                document.getElementById('syntaxHighlight').scrollTop = editor.scrollTop;
+                document.getElementById('syntaxHighlight').scrollLeft = editor.scrollLeft;
+                document.getElementById('lineNumbers').scrollTop = editor.scrollTop;
+            });
+
+            document.addEventListener('keydown', handleKeyboard);
+
+            // Sync scrolling
+            const lineNumbers = document.getElementById('lineNumbers');
+            editor.addEventListener('scroll', () => {
+                lineNumbers.scrollTop = editor.scrollTop;
+            });
+        }
+
+        // ==================== START APPLICATION ====================
+        init();
+    </script>
+</body>
+</html>
